@@ -470,7 +470,7 @@ pub fn replace_n<'a>(
 
 /// Concatenate the contents of an iterator.
 /// 
-/// If you want to insert a separator inbetween elements, use [join] or [join_format].
+/// If you want to insert a separator inbetween elements, use [`join`] or [`join_format`].
 /// 
 /// ```rust
 /// # use display_utils::*;
