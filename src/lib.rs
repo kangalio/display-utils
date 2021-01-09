@@ -15,8 +15,9 @@
 //! println!("{}", "abc".repeat(4)); // std
 //! ```
 //! 
-//! The important difference is that the straightforward std way involves 4 allocations, whereas
-//! the display_utils way operates 100% on stack and is therefore no_std compatible and much faster.
+//! The important difference is that the std approach involves 4 allocations, whereas the
+//! display_utils approach operates 100% on stack and is therefore no_std compatible and likely 
+//! faster.
 
 /// Print a loading-style bar using Unicode block characters.
 /// 
@@ -310,8 +311,23 @@ pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::
 /// # assert_eq!(indent(0).to_string(), "");
 /// # assert_eq!(indent(1).to_string(), "\t");
 /// ```
-pub fn indent(depth: usize) -> impl core::fmt::Display {
+pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
 	repeat("\t", depth)
+}
+
+/// Indent to a given depth using 4 spaces.
+/// 
+/// This is a shortcut for `repeat("    ", depth)`; please see that function if you wish to use a
+/// different indent string.
+/// 
+/// ```rust
+/// # use display_utils::*;
+/// assert_eq!(indent(2).to_string(), "        ");
+/// # assert_eq!(indent(0).to_string(), "");
+/// # assert_eq!(indent(1).to_string(), "    ");
+/// ```
+pub fn indent_4(depth: usize) -> impl core::fmt::Display {
+	repeat("    ", depth)
 }
 
 /// Print a Unicode-compliant lowercase version of the string.
@@ -450,4 +466,45 @@ pub fn replace_n<'a>(
 	}
 
 	ReplaceN { source, from, to, n }
+}
+
+/// Concatenate the contents of an iterator.
+/// 
+/// If you want to insert a separator inbetween elements, use [join] or [join_format].
+/// 
+/// ```rust
+/// # use display_utils::*;
+/// let string = String::from("It's not much, but it's honest work");
+/// assert_eq!(concat(&[
+///     &string[11..13],
+///     &string[25..27],
+///     &string[34..35],
+/// ]).to_string(), "chonk");
+/// # assert_eq!(concat(&[1, 2, 3]).to_string(), "123");
+/// # assert_eq!(concat(None::<u8>).to_string(), "");
+/// ```
+pub fn concat<I>(iterator: I) -> impl core::fmt::Display
+where
+	I: IntoIterator,
+	I::Item: core::fmt::Display,
+	I::IntoIter: Clone,
+{
+	struct Concat<I> {
+		iterator: I,
+	}
+
+	impl<I> core::fmt::Display for Concat<I>
+	where
+		I: Iterator + Clone,
+		I::Item: core::fmt::Display,
+	{
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			for item in self.iterator.clone() {
+				write!(f, "{}", item)?;
+			}
+			Ok(())
+		}
+	}
+
+	Concat { iterator: iterator.into_iter() }
 }
