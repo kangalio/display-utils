@@ -103,24 +103,23 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 ///
 /// ```rust
 /// let expected_output = "\
-/// █          
-/// █▆         
-/// ██▄        
-/// ███▁       
-/// ████       
-/// ████▇      
-/// █████▄     
-/// ██████▂    
-/// ███████    
-/// ████████   
-/// ████████▅  
-/// █████████▃
-/// ██████████ ";
+/// █          █
+/// █         ▆█
+/// █        ▄██
+/// █       ▁███
+/// █       ████
+/// █      ▇████
+/// █     ▄█████
+/// █    ▂██████
+/// █    ███████
+/// █   ████████
+/// █  ▅████████
+/// █ ▃█████████
+/// █ ██████████";
 ///
 /// assert_eq!(
-///     display_utils::vertical_unicode_block_bars(
-///         13,
-///         [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0].iter().copied()
+///     display_utils::vertical_unicode_block_bars(13,
+///         [1.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0].iter().copied()
 ///     ).to_string(),
 ///     expected_output,
 /// );
@@ -317,9 +316,9 @@ pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::
 ///
 /// ```rust
 /// # use display_utils::*;
-/// assert_eq!(indent(2).to_string(), "\t\t");
-/// # assert_eq!(indent(0).to_string(), "");
-/// # assert_eq!(indent(1).to_string(), "\t");
+/// assert_eq!(indent_tab(2).to_string(), "\t\t");
+/// # assert_eq!(indent_tab(0).to_string(), "");
+/// # assert_eq!(indent_tab(1).to_string(), "\t");
 /// ```
 pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
 	repeat("\t", depth)
@@ -332,9 +331,9 @@ pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
 ///
 /// ```rust
 /// # use display_utils::*;
-/// assert_eq!(indent(2).to_string(), "        ");
-/// # assert_eq!(indent(0).to_string(), "");
-/// # assert_eq!(indent(1).to_string(), "    ");
+/// assert_eq!(indent_4(2).to_string(), "        ");
+/// # assert_eq!(indent_4(0).to_string(), "");
+/// # assert_eq!(indent_4(1).to_string(), "    ");
 /// ```
 pub fn indent_4(depth: usize) -> impl core::fmt::Display {
 	repeat("    ", depth)
@@ -523,5 +522,125 @@ where
 
 	Concat {
 		iterator: iterator.into_iter(),
+	}
+}
+
+/// Write a Display object into a fixed-size buffer and returns the resulting &mut str.
+///
+/// Returns Ok if the object fully fits into the given buffer, and Err with the
+/// truncated string otherwise.
+///
+/// ```rust
+/// # use display_utils::*;
+/// let mut buf = [0; 20];
+///
+/// assert_eq!(
+///     collect_str(&mut buf, format_args!("I have {} apples", 12)).unwrap(),
+///     "I have 12 apples",
+/// );
+///
+/// assert_eq!(
+///     collect_str(&mut buf, format_args!("I have {} apples", 615233821)).unwrap_err(),
+///     "I have 615233821 app",
+/// );
+///
+/// # let mut buf = [0; 5];
+/// # // Filling the buffer snugly works?
+/// # assert_eq!(
+/// #     collect_str(&mut buf, "12345").unwrap(),
+/// #     "12345",
+/// # );
+/// #
+/// # // Multibyte characters are truncated at a proper char boundary?
+/// # assert_eq!(
+/// #     collect_str(&mut buf, "1234ü").unwrap_err(),
+/// #     "1234",
+/// # );
+/// #
+/// # // Long input strings don't break anything?
+/// # assert_eq!(
+/// #     collect_str(&mut buf, "w4o598etr7zgho8ws97e45rutqhwl93458tufcah34t89anmo94").unwrap_err(),
+/// #     "w4o59",
+/// # );
+/// #
+/// # // Short input strings don't break anything?
+/// # assert_eq!(
+/// #     collect_str(&mut buf, format_args!("{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6)).unwrap_err(),
+/// #     "12345",
+/// # );
+/// ```
+pub fn collect_str_mut(
+	buf: &mut [u8],
+	object: impl core::fmt::Display,
+) -> Result<&mut str, &mut str> {
+	use core::fmt::Write;
+
+	// minimal no_std reimplementation of std::io::Cursor
+	struct Cursor<'a> {
+		buf: &'a mut [u8],
+		ptr: usize,
+	}
+
+	impl Write for Cursor<'_> {
+		fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
+			let s = s.as_bytes();
+
+			if self.ptr < self.buf.len() {
+				let bytes_to_write = usize::min(s.len(), self.buf.len() - self.ptr);
+
+				#[allow(clippy::indexing_slicing)] // ... any errors are caught by unit tests ^^
+				self.buf[self.ptr..(self.ptr + bytes_to_write)]
+					.copy_from_slice(&s[..bytes_to_write]);
+			}
+			self.ptr += s.len();
+
+			Ok(())
+		}
+	}
+
+	let mut cursor = Cursor { buf, ptr: 0 };
+
+	// our Write implementation doesn't return errors anyways
+	let _ = write!(cursor, "{}", object);
+
+	if cursor.ptr > cursor.buf.len() {
+		Err(match core::str::from_utf8_mut(&mut cursor.buf[..]) {
+			// UNWRAP: we repeat the same function call so it's gonna succeed again
+			Ok(_) => core::str::from_utf8_mut(&mut cursor.buf[..]).unwrap(),
+			#[allow(clippy::indexing_slicing)] // see UNWRAP
+			// UNWRAP: valid_up_to() points to a valid char boundary by definition
+			Err(err) => core::str::from_utf8_mut(&mut cursor.buf[..err.valid_up_to()]).unwrap(),
+		})
+	} else {
+		#[allow(clippy::indexing_slicing)] // if buffer didn't spill, the pointer will point to the
+		// end of a copied-in &str, so it must be a valid char boundary
+		Ok(core::str::from_utf8_mut(&mut cursor.buf[..cursor.ptr]).unwrap())
+	}
+}
+
+/// Write a Display object into a fixed-size buffer and returns the resulting &str.
+///
+/// Returns Ok if the object fully fits into the given buffer, and Err with the
+/// truncated string otherwise.
+///
+/// ```rust
+/// # use display_utils::*;
+/// let mut buf = [0; 20];
+///
+/// assert_eq!(
+///     collect_str(&mut buf, format_args!("I have {} apples", 12)),
+///     Ok("I have 12 apples"),
+/// );
+///
+/// assert_eq!(
+///     collect_str(&mut buf, format_args!("I have {} apples", 615233821)),
+///     Err("I have 615233821 app"),
+/// );
+/// ```
+pub fn collect_str(buf: &mut [u8], object: impl core::fmt::Display) -> Result<&str, &str> {
+	// big brain
+	match collect_str_mut(buf, object) {
+		Ok(x) => Ok(x),
+		Err(x) => Err(x),
 	}
 }
