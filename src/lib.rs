@@ -3,30 +3,30 @@
 
 //! This library provides several useful constructs to format data in a human-readable fashion with
 //! zero allocations
-//! 
+//!
 //! Some of these functions may seem to partly reinvent existing std functionality, for example
 //! [`join`]:
-//! 
+//!
 //! ```rust
-//! println!("{}", display_utils::join(&[1, 2, 3], " + ")); // display_utils
-//! println!("{}", ["1", "2", "3"].join(" + ")); // std
-//! 
-//! println!("{}", display_utils::repeat("abc", 4)); // display_utils
-//! println!("{}", "abc".repeat(4)); // std
+//! println!("{}", display_utils::join(&[1, 2, 3], " + "));
+//! println!("{}", ["1", "2", "3"].join(" + "));
+//!
+//! println!("{}", display_utils::repeat("abc", 4));
+//! println!("{}", "abc".repeat(4));
 //! ```
-//! 
+//!
 //! The important difference is that the std approach involves 4 allocations, whereas the
-//! display_utils approach operates 100% on stack and is therefore no_std compatible and likely 
+//! display_utils approach operates 100% on stack and is therefore no_std compatible and likely
 //! faster.
 
 /// Print a loading-style bar using Unicode block characters.
-/// 
+///
 /// The bar is very high-resolution: 8 states can be represented per character.
-/// 
+///
 /// Accepts the total length of the bar and a float from 0.0 to 1.0 as the filled proportion.
-/// 
+///
 /// Prints exactly max_length chars (not bytes!), right-padded with spaces.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(unicode_block_bar(13, 0.0).to_string(), "             ");
@@ -78,9 +78,9 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 
 	let steps = proportion * max_steps as f32;
 	let steps = (steps.max(0.0) as usize).min(max_steps);
-	
+
 	if steps == max_steps {
-		UnicodeBlockBar  {
+		UnicodeBlockBar {
 			num_full_blocks: max_length,
 			midpoint: "",
 			num_spaces: 0,
@@ -96,11 +96,11 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 }
 
 /// Print a sequence of equalizer-style vertical bars using Unicode block characters.
-/// 
+///
 /// The bars are very high-resolution: 8 states can be represented per character.
-/// 
+///
 /// Accepts the total maximum height of the bars and an iterator over each bar's fill percentage.
-/// 
+///
 /// ```rust
 /// let expected_output = "\
 /// █          
@@ -114,9 +114,9 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 /// ███████    
 /// ████████   
 /// ████████▅  
-/// █████████▃ 
+/// █████████▃
 /// ██████████ ";
-/// 
+///
 /// assert_eq!(
 ///     display_utils::vertical_unicode_block_bars(
 ///         13,
@@ -163,19 +163,22 @@ where
 		}
 	}
 
-	VerticalUnicodeBlockBars { max_height, proportions: proportions.into_iter() }
+	VerticalUnicodeBlockBars {
+		max_height,
+		proportions: proportions.into_iter(),
+	}
 }
 
 /// Concatenate iterator elements, separating each element pair with a given joiner.
-/// 
+///
 /// Equivalent to [`slice::join`](https://doc.rust-lang.org/std/primitive.slice.html#method.join).
-/// 
+///
 /// The iterator must be cloneable, because Display objects may be printed multiple times.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// let strings = &["hello", "wonderful", "world"];
-/// 
+///
 /// let output = join(strings, ", ");
 /// assert_eq!(output.to_string(), "hello, wonderful, world");
 /// # assert_eq!(join(&[] as &[u8], ", ").to_string(), "");
@@ -213,20 +216,23 @@ where
 			Ok(())
 		}
 	}
-	
-	Join { iterator: iterator.into_iter(), joiner }
+
+	Join {
+		iterator: iterator.into_iter(),
+		joiner,
+	}
 }
 
 /// Concatenate iterator elements, separating each element pair with a given joiner, where each
 /// iterator element can be formatted using a callback.
-/// 
+///
 /// The callback must be Fn and the iterator must be cloneable, because Display objects may be
 /// printed multiple times.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// let strings = &["hello", "wonderful", "world"];
-/// 
+///
 /// let output = join_format(
 ///     strings.iter().enumerate(),
 ///     |(i, string), f| write!(f, "{}={}", i, string),
@@ -267,14 +273,18 @@ where
 			Ok(())
 		}
 	}
-	
-	Join { iterator: iterator.into_iter(), callback, joiner }
+
+	Join {
+		iterator: iterator.into_iter(),
+		callback,
+		joiner,
+	}
 }
 
 /// Repeat an object a certain number of times.
-/// 
+///
 /// Equivalent to `str::repeat`.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(repeat("fun", 5).to_string(), "funfunfunfunfun");
@@ -301,10 +311,10 @@ pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::
 }
 
 /// Indent to a given depth using the tab character.
-/// 
+///
 /// This is a shortcut for `repeat("\t", depth)`; please see that function if you wish to use a
 /// different indent string.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(indent(2).to_string(), "\t\t");
@@ -316,10 +326,10 @@ pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
 }
 
 /// Indent to a given depth using 4 spaces.
-/// 
+///
 /// This is a shortcut for `repeat("    ", depth)`; please see that function if you wish to use a
 /// different indent string.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(indent(2).to_string(), "        ");
@@ -331,9 +341,9 @@ pub fn indent_4(depth: usize) -> impl core::fmt::Display {
 }
 
 /// Print a Unicode-compliant lowercase version of the string.
-/// 
+///
 /// Equivalent to `str::to_lowercase`.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(lowercase("GRÜẞE JÜRGEN").to_string(), "grüße jürgen");
@@ -359,9 +369,9 @@ pub fn lowercase(source: &str) -> impl core::fmt::Display + '_ {
 }
 
 /// Print a Unicode-compliant uppercase version of the string.
-/// 
+///
 /// Equivalent to `str::to_uppercase`.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(uppercase("grüße jürgen").to_string(), "GRÜSSE JÜRGEN");
@@ -387,11 +397,11 @@ pub fn uppercase(source: &str) -> impl core::fmt::Display + '_ {
 }
 
 /// Replace instances of the `from` string with the `to` string.
-/// 
+///
 /// Note: this function, contrary to its std equivalent
 /// [`str::replace`](https://doc.rust-lang.org/std/primitive.str.html#method.replace),
 /// does not support the Pattern API because that API is not yet stabilized.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(replace("this is old", "old", "new").to_string(), "this is new");
@@ -425,11 +435,11 @@ pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> impl core::fm
 }
 
 /// Replace the first n instances of the `from` string with the `to` string.
-/// 
+///
 /// Note: this function, contrary to its std equivalent
 /// [`str::replacen`](https://doc.rust-lang.org/std/primitive.str.html#method.replacen),
 /// does not support the Pattern API because that API is not yet stabilized.
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(replace_n("old old old", "old", "new", 2).to_string(), "new new old");
@@ -441,7 +451,7 @@ pub fn replace_n<'a>(
 	source: &'a str,
 	from: &'a str,
 	to: &'a str,
-	n: usize
+	n: usize,
 ) -> impl core::fmt::Display + 'a {
 	struct ReplaceN<'a> {
 		source: &'a str,
@@ -465,13 +475,18 @@ pub fn replace_n<'a>(
 		}
 	}
 
-	ReplaceN { source, from, to, n }
+	ReplaceN {
+		source,
+		from,
+		to,
+		n,
+	}
 }
 
 /// Concatenate the contents of an iterator.
-/// 
+///
 /// If you want to insert a separator inbetween elements, use [`join`] or [`join_format`].
-/// 
+///
 /// ```rust
 /// # use display_utils::*;
 /// let string = String::from("It's not much, but it's honest work");
@@ -506,5 +521,7 @@ where
 		}
 	}
 
-	Concat { iterator: iterator.into_iter() }
+	Concat {
+		iterator: iterator.into_iter(),
+	}
 }
