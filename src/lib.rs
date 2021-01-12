@@ -1,23 +1,54 @@
 #![no_std]
 #![warn(clippy::indexing_slicing)]
 
-//! This library provides several useful constructs to format data in a human-readable fashion with
-//! zero allocations
+//! This library aims to provide useful constructs to vastly simplify data formatting tasks.
 //!
-//! Some of these functions may seem to partly reinvent existing std functionality, for example
-//! [`join`]:
+//! Being a no_std library, no allocations will be made, ever. Even with this restriction however,
+//! the provided functions are flexible and ergonomic.
 //!
+//! This code snippet:
 //! ```rust
-//! println!("{}", display_utils::join(&[1, 2, 3], " + "));
-//! println!("{}", ["1", "2", "3"].join(" + "));
-//!
-//! println!("{}", display_utils::repeat("abc", 4));
-//! println!("{}", "abc".repeat(4));
+//! # let list = &[1, 2, 3];
+//! for (i, item) in list.iter().enumerate() {
+//!     if i == list.len() - 1 {
+//!         println!("{}", item);
+//!     } else {
+//!         print!("{} - ", item);
+//!     }
+//! }
+//! ```
+//! ...simplifies to:
+//! ```rust
+//! # let list = &[1, 2, 3];
+//! println!("{}", display_utils::join(list, " - "));
 //! ```
 //!
-//! The important difference is that the std approach involves 4 allocations, whereas the
-//! display_utils approach operates 100% on stack and is therefore no_std compatible and likely
-//! faster.
+//! Other functions work in a similar fashion. Browser through the crate functions for an overview
+//! of what you can do.
+//!
+//! Extension traits ([`DisplayExt`], [`IteratorExt`]) which may be used to make method chains
+//! more readable.
+
+mod extension_traits;
+pub use extension_traits::{DisplayExt, IteratorExt};
+// mod wrapper;
+// pub use wrapper::Wrapper;
+
+// Sigh, how I wish std exposed non-panicking functions by default
+fn checked_split_at(s: &[u8], index: usize) -> Option<(&[u8], &[u8])> {
+	Some((s.get(..index)?, s.get(index..)?))
+}
+
+// and while we're at it, doctests for private functions would be nice too
+#[test]
+#[rustfmt::skip]
+fn test_checked_split_at() {
+	assert_eq!(checked_split_at(b"", 0), Some((&b""[..], &b""[..])));
+	assert_eq!(checked_split_at(b"Hello", 0), Some((&b""[..], &b"Hello"[..])));
+	assert_eq!(checked_split_at(b"Hello", 3), Some((&b"Hel"[..], &b"lo"[..])));
+	assert_eq!(checked_split_at(b"Hello", 5), Some((&b"Hello"[..], &b""[..])));
+	assert_eq!(checked_split_at(b"Hello", 6), None);
+}
 
 /// Print a loading-style bar using Unicode block characters.
 ///
@@ -240,23 +271,23 @@ pub struct Join<I, J> {
 ///
 /// let output = join_format(
 ///     strings.iter().enumerate(),
-///     |(i, string), f| write!(f, "{}={}", i, string),
 ///     ", ",
+///     |(i, string), f| write!(f, "{}={}", i, string),
 /// );
 /// assert_eq!(output.to_string(), "0=hello, 1=wonderful, 2=world");
 /// ```
-pub fn join_format<I, C, J>(iterator: I, callback: C, joiner: J) -> JoinFormat<I::IntoIter, C, J>
+pub fn join_format<I, J, C>(iterator: I, joiner: J, callback: C) -> JoinFormat<I::IntoIter, J, C>
 where
 	I: IntoIterator,
 	I::IntoIter: Clone,
-	C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
 	J: core::fmt::Display,
+	C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
 {
-	impl<I, C, J> core::fmt::Display for JoinFormat<I, C, J>
+	impl<I, J, C> core::fmt::Display for JoinFormat<I, J, C>
 	where
 		I: Iterator + Clone,
-		C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
 		J: core::fmt::Display,
+		C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
 	{
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			let mut iter = self.iterator.clone();
@@ -281,10 +312,10 @@ where
 }
 
 /// See [`join_format()`].
-pub struct JoinFormat<I, C, J> {
+pub struct JoinFormat<I, J, C> {
 	iterator: I,
-	callback: C,
 	joiner: J,
+	callback: C,
 }
 
 /// Repeat an object a certain number of times.
@@ -317,95 +348,44 @@ pub struct Repeat<T> {
 	times: usize,
 }
 
-/// Indent to a given depth using the tab character.
+/// Print a Unicode-compliant lowercase version of the Display object.
 ///
-/// This is a shortcut for `repeat("\t", depth)`; please see that function if you wish to use a
-/// different indent string.
-///
-/// ```rust
-/// # use display_utils::*;
-/// assert_eq!(indent_tab(2).to_string(), "\t\t");
-/// # assert_eq!(indent_tab(0).to_string(), "");
-/// # assert_eq!(indent_tab(1).to_string(), "\t");
-/// ```
-pub fn indent_tab(depth: usize) -> IndentTab {
-	impl core::fmt::Display for IndentTab {
-		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-			self.inner.fmt(f)
-		}
-	}
-
-	IndentTab {
-		inner: Repeat {
-			token: "\t",
-			times: depth,
-		},
-	}
-}
-
-/// See [`indent_tab()`].
-pub struct IndentTab {
-	inner: Repeat<&'static str>,
-}
-
-/// Indent to a given depth using 4 spaces.
-///
-/// This is a shortcut for `repeat("    ", depth)`; please see that function if you wish to use a
-/// different indent string.
-///
-/// ```rust
-/// # use display_utils::*;
-/// assert_eq!(indent_4(2).to_string(), "        ");
-/// # assert_eq!(indent_4(0).to_string(), "");
-/// # assert_eq!(indent_4(1).to_string(), "    ");
-/// ```
-pub fn indent_4(depth: usize) -> Indent4 {
-	impl core::fmt::Display for Indent4 {
-		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-			self.inner.fmt(f)
-		}
-	}
-
-	Indent4 {
-		inner: Repeat {
-			token: "    ",
-			times: depth,
-		},
-	}
-}
-
-/// See [`indent_4()`].
-pub struct Indent4 {
-	inner: Repeat<&'static str>,
-}
-
-/// Print a Unicode-compliant lowercase version of the string.
-///
-/// Equivalent to `str::to_lowercase`.
+/// Equivalent to `str::to_lowercase`, except it works on any Display object.
 ///
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(lowercase("GRÜẞE JÜRGEN").to_string(), "grüße jürgen");
+///
+/// // Works with literally any Display object
+/// assert_eq!(lowercase(join(&["HeLlO", "wOrLd"], ", ")).to_string(), "hello, world");
 /// ```
-pub fn lowercase(source: &str) -> Lowercase<'_> {
-	impl core::fmt::Display for Lowercase<'_> {
-		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-			use core::fmt::Write;
-			for input_char in self.source.chars() {
-				for output_char in input_char.to_lowercase() {
-					f.write_char(output_char)?;
-				}
+pub fn lowercase<T: core::fmt::Display>(object: T) -> Lowercase<T> {
+	struct LowercaseWriter<'a, 'b> {
+		f: &'a mut core::fmt::Formatter<'b>,
+	}
+
+	impl core::fmt::Write for LowercaseWriter<'_, '_> {
+		fn write_str(&mut self, s: &str) -> core::fmt::Result {
+			for input_char in s.chars() {
+				write!(self.f, "{}", input_char.to_lowercase())?;
 			}
 			Ok(())
 		}
 	}
 
-	Lowercase { source }
+	impl<T: core::fmt::Display> core::fmt::Display for Lowercase<T> {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			use core::fmt::Write as _;
+			write!(LowercaseWriter { f }, "{}", self.object)
+		}
+	}
+
+	Lowercase { object }
 }
 
 /// See [`lowercase()`].
-pub struct Lowercase<'a> {
-	source: &'a str,
+pub struct Lowercase<T: core::fmt::Display> {
+	object: T,
 }
 
 /// Print a Unicode-compliant uppercase version of the string.
@@ -415,29 +395,41 @@ pub struct Lowercase<'a> {
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(uppercase("grüße jürgen").to_string(), "GRÜSSE JÜRGEN");
+///
+/// // Works with literally any Display object
+/// let parse_int_error = "a".parse::<i32>().unwrap_err();
+/// assert_eq!(uppercase(parse_int_error).to_string(), "INVALID DIGIT FOUND IN STRING");
 /// ```
-pub fn uppercase(source: &str) -> Uppercase<'_> {
-	impl core::fmt::Display for Uppercase<'_> {
-		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-			use core::fmt::Write;
-			for input_char in self.source.chars() {
-				for output_char in input_char.to_uppercase() {
-					f.write_char(output_char)?;
-				}
+pub fn uppercase<T: core::fmt::Display>(object: T) -> Uppercase<T> {
+	struct UppercaseWriter<'a, 'b> {
+		f: &'a mut core::fmt::Formatter<'b>,
+	}
+
+	impl core::fmt::Write for UppercaseWriter<'_, '_> {
+		fn write_str(&mut self, s: &str) -> core::fmt::Result {
+			for input_char in s.chars() {
+				write!(self.f, "{}", input_char.to_uppercase())?;
 			}
 			Ok(())
 		}
 	}
 
-	Uppercase { source }
+	impl<T: core::fmt::Display> core::fmt::Display for Uppercase<T> {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			use core::fmt::Write as _;
+			write!(UppercaseWriter { f }, "{}", self.object)
+		}
+	}
+
+	Uppercase { object }
 }
 
 /// See [`uppercase()`].
-pub struct Uppercase<'a> {
-	source: &'a str,
+pub struct Uppercase<T> {
+	object: T,
 }
 
-/// Replace instances of the `from` string with the `to` string.
+/// Replace instances of the `from` string with the `to` Display object.
 ///
 /// Note: this function, contrary to its std equivalent
 /// [`str::replace`](https://doc.rust-lang.org/std/primitive.str.html#method.replace),
@@ -448,20 +440,22 @@ pub struct Uppercase<'a> {
 /// assert_eq!(replace("this is old", "old", "new").to_string(), "this is new");
 /// # assert_eq!(replace("", "aaaaa", "xinbuldfgh").to_string(), "");
 /// # assert_eq!(replace("old is this", "old", "new").to_string(), "new is this");
+/// # assert_eq!(replace("old is this", "old", 5).to_string(), "5 is this");
 /// ```
 // TODO: change `from` parameter type to Pattern, once that API is stabilized
-pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> Replace<'a> {
-	impl core::fmt::Display for Replace<'_> {
+pub fn replace<'a, T: core::fmt::Display>(source: &'a str, from: &'a str, to: T) -> Replace<'a, T> {
+	impl<T: core::fmt::Display> core::fmt::Display for Replace<'_, T> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			let mut last_end = 0;
 			for (start, part) in self.source.match_indices(self.from) {
-				// UNWRAP: match_indices returns well-aligned indices
-				f.write_str(self.source.get(last_end..start).unwrap())?;
-				f.write_str(self.to)?;
+				#[allow(clippy::indexing_slicing)] // match_indices returns well-aligned indices
+				f.write_str(&self.source[last_end..start])?;
+
+				write!(f, "{}", self.to)?;
 				last_end = start + part.len();
 			}
-			// UNWRAP: last_end is well-aligned still
-			f.write_str(self.source.get(last_end..).unwrap())?;
+			#[allow(clippy::indexing_slicing)] // last_end is well-aligned still
+			f.write_str(&self.source[last_end..])?;
 			Ok(())
 		}
 	}
@@ -470,10 +464,10 @@ pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> Replace<'a> {
 }
 
 /// See [`replace()`].
-pub struct Replace<'a> {
+pub struct Replace<'a, T> {
 	source: &'a str,
 	from: &'a str,
-	to: &'a str,
+	to: T,
 }
 
 /// Replace the first n instances of the `from` string with the `to` string.
@@ -485,22 +479,27 @@ pub struct Replace<'a> {
 /// ```rust
 /// # use display_utils::*;
 /// assert_eq!(replace_n("old old old", "old", "new", 2).to_string(), "new new old");
+/// # assert_eq!(replace_n("old old old", "old", 123, 2).to_string(), "123 123 old");
 /// # assert_eq!(replace_n("", "aaaaa", "xinbuldfgh", 987).to_string(), "");
 /// # assert_eq!(replace_n("old is this", "old", "new", 0).to_string(), "old is this");
 /// ```
 // TODO: change `from` parameter type to Pattern, once that API is stabilized
-pub fn replace_n<'a>(source: &'a str, from: &'a str, to: &'a str, n: usize) -> ReplaceN<'a> {
-	impl core::fmt::Display for ReplaceN<'_> {
+pub fn replace_n<'a, T>(source: &'a str, from: &'a str, to: T, n: usize) -> ReplaceN<'a, T>
+where
+	T: core::fmt::Display,
+{
+	impl<T: core::fmt::Display> core::fmt::Display for ReplaceN<'_, T> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			let mut last_end = 0;
 			for (start, part) in self.source.match_indices(self.from).take(self.n) {
-				// UNWRAP: match_indices returns well-aligned indices
-				f.write_str(self.source.get(last_end..start).unwrap())?;
-				f.write_str(self.to)?;
+				#[allow(clippy::indexing_slicing)] // match_indices returns well-aligned indices
+				f.write_str(&self.source[last_end..start])?;
+
+				write!(f, "{}", self.to)?;
 				last_end = start + part.len();
 			}
-			// UNWRAP: last_end is well-aligned still
-			f.write_str(self.source.get(last_end..).unwrap())?;
+			#[allow(clippy::indexing_slicing)] // last_end is well-aligned still
+			f.write_str(&self.source[last_end..])?;
 			Ok(())
 		}
 	}
@@ -514,10 +513,10 @@ pub fn replace_n<'a>(source: &'a str, from: &'a str, to: &'a str, n: usize) -> R
 }
 
 /// See [`replace_n()`].
-pub struct ReplaceN<'a> {
+pub struct ReplaceN<'a, T> {
 	source: &'a str,
 	from: &'a str,
-	to: &'a str,
+	to: T,
 	n: usize,
 }
 
@@ -624,7 +623,7 @@ pub fn collect_str_mut(
 	}
 
 	impl Write for Cursor<'_> {
-		fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
+		fn write_str(&mut self, s: &str) -> core::fmt::Result {
 			let s = s.as_bytes();
 
 			if self.ptr < self.buf.len() {
@@ -688,3 +687,178 @@ pub fn collect_str(buf: &mut [u8], object: impl core::fmt::Display) -> Result<&s
 		Err(x) => Err(x),
 	}
 }
+
+// /// Wrap a Display object and extend it with many common str trait implementations.
+// ///
+// /// Wrapped Display objects support equality checks, lexicographical ordering, and even indexing.
+// /// For details, please see [`Wrapper`].
+// pub fn wrap<T: core::fmt::Display>(object: T) -> Wrapper<T> {
+// 	Wrapper { inner: object }
+// }
+
+/// Extract a slice from the given Display object, similar to indexing a `&str`.
+///
+/// This function will not panic if the slice range is out of bounds, however it will panic when the
+/// slice bounds do not lie on char boundaries.
+///
+/// ```rust
+/// # use display_utils::*;
+/// assert_eq!(slice("Hello", 1..).to_string(), "ello");
+///
+/// let parse_int_error = "a".parse::<i32>().unwrap_err();
+/// assert_eq!(slice(parse_int_error, 3..=15).to_string(), "alid digit fo");
+///
+/// # assert_eq!(slice(concat(&["foo", "bar"]), 1..5).to_string(), "ooba");
+/// ```
+pub fn slice<T, R>(object: T, range: R) -> DisplaySlice<T>
+where
+	T: core::fmt::Display,
+	R: core::ops::RangeBounds<usize>,
+{
+	struct ExtractingWriter<'a, 'b> {
+		extract_range_start: usize,
+		extract_range_end: Option<usize>,
+		pointer: usize,
+		sink: &'a mut core::fmt::Formatter<'b>,
+	}
+
+	impl core::fmt::Write for ExtractingWriter<'_, '_> {
+		fn write_str(&mut self, segment: &str) -> core::fmt::Result {
+			let segment_slice_start = self
+				.extract_range_start
+				.saturating_sub(self.pointer)
+				.min(segment.len());
+
+			let segment_slice_end = match self.extract_range_end {
+				Some(extract_range_end) => extract_range_end
+					.saturating_sub(self.pointer)
+					.min(segment.len()),
+				None => segment.len(),
+			};
+
+			#[allow(clippy::indexing_slicing)] // we _want_ to panic here
+			self.sink
+				.write_str(&segment[segment_slice_start..segment_slice_end])?;
+
+			self.pointer += segment.len();
+
+			Ok(())
+		}
+	}
+
+	impl<T: core::fmt::Display> core::fmt::Display for DisplaySlice<T> {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			use core::fmt::Write as _;
+			write!(
+				ExtractingWriter {
+					extract_range_start: self.extract_range_start,
+					extract_range_end: self.extract_range_end,
+					pointer: 0,
+					sink: f,
+				},
+				"{}",
+				self.object
+			)
+		}
+	}
+
+	DisplaySlice {
+		object,
+		extract_range_start: match range.start_bound() {
+			core::ops::Bound::Included(&x) => x,
+			core::ops::Bound::Excluded(&x) => x + 1,
+			core::ops::Bound::Unbounded => 0,
+		},
+		extract_range_end: match range.end_bound() {
+			core::ops::Bound::Included(&x) => Some(x + 1),
+			core::ops::Bound::Excluded(&x) => Some(x),
+			core::ops::Bound::Unbounded => None,
+		},
+	}
+}
+
+/// See [`slice()`];
+pub struct DisplaySlice<T> {
+	object: T,
+	extract_range_start: usize,
+	extract_range_end: Option<usize>,
+}
+
+/// Lexicographically compares a Display object against a string.
+///
+/// `cmp(a, b)` is functionally equivalent to `a.to_string().cmp(b)`, but requires no allocations.
+///
+/// ```rust
+/// # use display_utils::*;
+/// use std::cmp::Ordering;
+///
+/// assert_eq!(cmp(true, "trud"), Ordering::Greater);
+/// assert_eq!(cmp(true, "true"), Ordering::Equal);
+/// assert_eq!(cmp(true, "truf"), Ordering::Less);
+///
+/// # let test = |segments: &[&'static str], reference| assert_eq!(
+/// #     cmp(display_utils::concat(segments), reference),
+/// #     segments.concat().as_str().cmp(reference),
+/// # );
+/// #
+/// # test(&["hello"], "hello");
+/// # test(&["hel", "lo"], "hello");
+/// # test(&["hel", "a"], "hello");
+/// # test(&["hel", "z"], "hello");
+/// # test(&["hel", "lo", "lo"], "hello");
+/// # test(&["", "", "hello", "", ""], "hello");
+/// ```
+#[allow(clippy::should_implement_trait)] // for some unholy reason we can't do this
+pub fn cmp<T: core::fmt::Display>(this: T, other: &str) -> core::cmp::Ordering {
+	struct CompareWriter<'a> {
+		// we downcast strings to byte slices because std does it too in its PartialOrd impl
+		// for str, and it's simpler
+		reference: &'a [u8],
+		state: core::cmp::Ordering,
+	}
+
+	impl core::fmt::Write for CompareWriter<'_> {
+		fn write_str(&mut self, s: &str) -> core::fmt::Result {
+			// If the ordering could already be determined in earlier segments, stop
+			if self.state != core::cmp::Ordering::Equal {
+				return Ok(());
+			}
+
+			if let Some((reference_segment, rest)) = checked_split_at(self.reference, s.len()) {
+				self.state = s.as_bytes().cmp(reference_segment);
+				self.reference = rest;
+			} else {
+				// We were not able to get a segment of the reference string to compare against;
+				// in other words, the reference string is shorter than the Display object.
+				// In Rust, longer strings are considered greater than shorter strings, hence
+				// the Display object we are being fed is greater than the reference
+				self.state = core::cmp::Ordering::Greater;
+			};
+
+			Ok(())
+		}
+	}
+
+	let mut compare_writer = CompareWriter {
+		reference: other.as_bytes(),
+		state: core::cmp::Ordering::Equal,
+	};
+
+	use core::fmt::Write as _;
+	// we ignore errors because our Write impl doesn't yield errors in any case anyways
+	let _ = write!(compare_writer, "{}", this);
+
+	if compare_writer.state == core::cmp::Ordering::Less && !compare_writer.reference.is_empty() {
+		// The two strings were the same so far, but the reference string is not yet exhausted
+		// so the reference string is greater
+		core::cmp::Ordering::Less
+	} else {
+		compare_writer.state
+	}
+}
+
+// TODO: if I feel like an evil genius one day, implement cmp function for any Display object,
+// i.e. essentially `cmp(a: impl Display, b: impl Display) -> Ordering`
+// In case future me forgot how to implement something that cursed: every time a sends a string
+// segment, request and loop through all of b's segments, comparing the appropriate segments
+// Could probably use the Index implementation there

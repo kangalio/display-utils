@@ -7,7 +7,7 @@ keywords = ["format", "display", "lightweight"]
 license = "MIT"
 name = "display_utils"
 repository = "https://github.com/kangalioo/display-utils/"
-version = "0.2.0"
+version = "0.3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
