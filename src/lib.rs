@@ -50,16 +50,9 @@
 /// # assert_eq!(unicode_block_bar(0, 0.0).to_string(), "");
 /// # assert_eq!(unicode_block_bar(0, 1.0).to_string(), "");
 /// ```
-pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::Display {
+pub fn unicode_block_bar(max_length: usize, proportion: f32) -> UnicodeBlockBar {
 	// index x = x 8ths of a full block
 	const BLOCK_CHARS: [&str; 9] = [" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
-
-	struct UnicodeBlockBar {
-		num_full_blocks: usize,
-		/// may be empty!
-		midpoint: &'static str,
-		num_spaces: usize,
-	}
 
 	impl core::fmt::Display for UnicodeBlockBar {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
@@ -95,6 +88,14 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 	}
 }
 
+/// See [`unicode_block_bar()`].
+pub struct UnicodeBlockBar {
+	num_full_blocks: usize,
+	/// may be empty!
+	midpoint: &'static str,
+	num_spaces: usize,
+}
+
 /// Print a sequence of equalizer-style vertical bars using Unicode block characters.
 ///
 /// The bars are very high-resolution: 8 states can be represented per character.
@@ -124,18 +125,16 @@ pub fn unicode_block_bar(max_length: usize, proportion: f32) -> impl core::fmt::
 ///     expected_output,
 /// );
 /// ```
-pub fn vertical_unicode_block_bars<I>(max_height: usize, proportions: I) -> impl core::fmt::Display
+pub fn vertical_unicode_block_bars<I>(
+	max_height: usize,
+	proportions: I,
+) -> VerticalUnicodeBlockBars<I::IntoIter>
 where
 	I: IntoIterator<Item = f32>,
 	I::IntoIter: Clone,
 {
 	// index x = x 8ths of a full block
 	const BLOCK_CHARS: [&str; 9] = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
-
-	struct VerticalUnicodeBlockBars<I> {
-		max_height: usize,
-		proportions: I,
-	}
 
 	impl<I: Iterator<Item = f32> + Clone> core::fmt::Display for VerticalUnicodeBlockBars<I> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
@@ -168,6 +167,12 @@ where
 	}
 }
 
+/// See [`vertical_unicode_block_bars()`].
+pub struct VerticalUnicodeBlockBars<I> {
+	max_height: usize,
+	proportions: I,
+}
+
 /// Concatenate iterator elements, separating each element pair with a given joiner.
 ///
 /// Equivalent to [`slice::join`](https://doc.rust-lang.org/std/primitive.slice.html#method.join).
@@ -183,18 +188,13 @@ where
 /// # assert_eq!(join(&[] as &[u8], ", ").to_string(), "");
 /// # assert_eq!(join(&["hello"], ", ").to_string(), "hello");
 /// ```
-pub fn join<T, I, J>(iterator: I, joiner: J) -> impl core::fmt::Display
+pub fn join<T, I, J>(iterator: I, joiner: J) -> Join<I::IntoIter, J>
 where
 	T: core::fmt::Display,
 	I: IntoIterator<Item = T>,
 	I::IntoIter: Clone,
 	J: core::fmt::Display,
 {
-	struct Join<I, J> {
-		iterator: I,
-		joiner: J,
-	}
-
 	impl<T, I, J> core::fmt::Display for Join<I, J>
 	where
 		T: core::fmt::Display,
@@ -222,6 +222,12 @@ where
 	}
 }
 
+/// See [`join()`].
+pub struct Join<I, J> {
+	iterator: I,
+	joiner: J,
+}
+
 /// Concatenate iterator elements, separating each element pair with a given joiner, where each
 /// iterator element can be formatted using a callback.
 ///
@@ -239,20 +245,14 @@ where
 /// );
 /// assert_eq!(output.to_string(), "0=hello, 1=wonderful, 2=world");
 /// ```
-pub fn join_format<I, C, J>(iterator: I, callback: C, joiner: J) -> impl core::fmt::Display
+pub fn join_format<I, C, J>(iterator: I, callback: C, joiner: J) -> JoinFormat<I::IntoIter, C, J>
 where
 	I: IntoIterator,
 	I::IntoIter: Clone,
 	C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
 	J: core::fmt::Display,
 {
-	struct Join<I, C, J> {
-		iterator: I,
-		callback: C,
-		joiner: J,
-	}
-
-	impl<I, C, J> core::fmt::Display for Join<I, C, J>
+	impl<I, C, J> core::fmt::Display for JoinFormat<I, C, J>
 	where
 		I: Iterator + Clone,
 		C: Fn(I::Item, &mut core::fmt::Formatter) -> core::fmt::Result,
@@ -273,11 +273,18 @@ where
 		}
 	}
 
-	Join {
+	JoinFormat {
 		iterator: iterator.into_iter(),
 		callback,
 		joiner,
 	}
+}
+
+/// See [`join_format()`].
+pub struct JoinFormat<I, C, J> {
+	iterator: I,
+	callback: C,
+	joiner: J,
 }
 
 /// Repeat an object a certain number of times.
@@ -291,12 +298,7 @@ where
 /// # assert_eq!(repeat("a", 0).to_string(), "");
 /// # assert_eq!(repeat("", 5).to_string(), "");
 /// ```
-pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::Display {
-	struct Repeat<T> {
-		token: T,
-		times: usize,
-	}
-
+pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> Repeat<T> {
 	impl<T: core::fmt::Display> core::fmt::Display for Repeat<T> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			for _ in 0..self.times {
@@ -307,6 +309,12 @@ pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::
 	}
 
 	Repeat { token, times }
+}
+
+/// See [`repeat()`].
+pub struct Repeat<T> {
+	token: T,
+	times: usize,
 }
 
 /// Indent to a given depth using the tab character.
@@ -320,8 +328,24 @@ pub fn repeat<T: core::fmt::Display>(token: T, times: usize) -> impl core::fmt::
 /// # assert_eq!(indent_tab(0).to_string(), "");
 /// # assert_eq!(indent_tab(1).to_string(), "\t");
 /// ```
-pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
-	repeat("\t", depth)
+pub fn indent_tab(depth: usize) -> IndentTab {
+	impl core::fmt::Display for IndentTab {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			self.inner.fmt(f)
+		}
+	}
+
+	IndentTab {
+		inner: Repeat {
+			token: "\t",
+			times: depth,
+		},
+	}
+}
+
+/// See [`indent_tab()`].
+pub struct IndentTab {
+	inner: Repeat<&'static str>,
 }
 
 /// Indent to a given depth using 4 spaces.
@@ -335,8 +359,24 @@ pub fn indent_tab(depth: usize) -> impl core::fmt::Display {
 /// # assert_eq!(indent_4(0).to_string(), "");
 /// # assert_eq!(indent_4(1).to_string(), "    ");
 /// ```
-pub fn indent_4(depth: usize) -> impl core::fmt::Display {
-	repeat("    ", depth)
+pub fn indent_4(depth: usize) -> Indent4 {
+	impl core::fmt::Display for Indent4 {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			self.inner.fmt(f)
+		}
+	}
+
+	Indent4 {
+		inner: Repeat {
+			token: "    ",
+			times: depth,
+		},
+	}
+}
+
+/// See [`indent_4()`].
+pub struct Indent4 {
+	inner: Repeat<&'static str>,
 }
 
 /// Print a Unicode-compliant lowercase version of the string.
@@ -347,12 +387,8 @@ pub fn indent_4(depth: usize) -> impl core::fmt::Display {
 /// # use display_utils::*;
 /// assert_eq!(lowercase("GRÜẞE JÜRGEN").to_string(), "grüße jürgen");
 /// ```
-pub fn lowercase(source: &str) -> impl core::fmt::Display + '_ {
-	struct AsciiLowercase<'a> {
-		source: &'a str,
-	}
-
-	impl<'a> core::fmt::Display for AsciiLowercase<'a> {
+pub fn lowercase(source: &str) -> Lowercase<'_> {
+	impl core::fmt::Display for Lowercase<'_> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			use core::fmt::Write;
 			for input_char in self.source.chars() {
@@ -364,7 +400,12 @@ pub fn lowercase(source: &str) -> impl core::fmt::Display + '_ {
 		}
 	}
 
-	AsciiLowercase { source }
+	Lowercase { source }
+}
+
+/// See [`lowercase()`].
+pub struct Lowercase<'a> {
+	source: &'a str,
 }
 
 /// Print a Unicode-compliant uppercase version of the string.
@@ -375,12 +416,8 @@ pub fn lowercase(source: &str) -> impl core::fmt::Display + '_ {
 /// # use display_utils::*;
 /// assert_eq!(uppercase("grüße jürgen").to_string(), "GRÜSSE JÜRGEN");
 /// ```
-pub fn uppercase(source: &str) -> impl core::fmt::Display + '_ {
-	struct AsciiUppercase<'a> {
-		source: &'a str,
-	}
-
-	impl<'a> core::fmt::Display for AsciiUppercase<'a> {
+pub fn uppercase(source: &str) -> Uppercase<'_> {
+	impl core::fmt::Display for Uppercase<'_> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			use core::fmt::Write;
 			for input_char in self.source.chars() {
@@ -392,7 +429,12 @@ pub fn uppercase(source: &str) -> impl core::fmt::Display + '_ {
 		}
 	}
 
-	AsciiUppercase { source }
+	Uppercase { source }
+}
+
+/// See [`uppercase()`].
+pub struct Uppercase<'a> {
+	source: &'a str,
 }
 
 /// Replace instances of the `from` string with the `to` string.
@@ -408,14 +450,8 @@ pub fn uppercase(source: &str) -> impl core::fmt::Display + '_ {
 /// # assert_eq!(replace("old is this", "old", "new").to_string(), "new is this");
 /// ```
 // TODO: change `from` parameter type to Pattern, once that API is stabilized
-pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> impl core::fmt::Display + 'a {
-	struct Replace<'a> {
-		source: &'a str,
-		from: &'a str,
-		to: &'a str,
-	}
-
-	impl<'a> core::fmt::Display for Replace<'a> {
+pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> Replace<'a> {
+	impl core::fmt::Display for Replace<'_> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			let mut last_end = 0;
 			for (start, part) in self.source.match_indices(self.from) {
@@ -433,6 +469,13 @@ pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> impl core::fm
 	Replace { source, from, to }
 }
 
+/// See [`replace()`].
+pub struct Replace<'a> {
+	source: &'a str,
+	from: &'a str,
+	to: &'a str,
+}
+
 /// Replace the first n instances of the `from` string with the `to` string.
 ///
 /// Note: this function, contrary to its std equivalent
@@ -446,20 +489,8 @@ pub fn replace<'a>(source: &'a str, from: &'a str, to: &'a str) -> impl core::fm
 /// # assert_eq!(replace_n("old is this", "old", "new", 0).to_string(), "old is this");
 /// ```
 // TODO: change `from` parameter type to Pattern, once that API is stabilized
-pub fn replace_n<'a>(
-	source: &'a str,
-	from: &'a str,
-	to: &'a str,
-	n: usize,
-) -> impl core::fmt::Display + 'a {
-	struct ReplaceN<'a> {
-		source: &'a str,
-		from: &'a str,
-		to: &'a str,
-		n: usize,
-	}
-
-	impl<'a> core::fmt::Display for ReplaceN<'a> {
+pub fn replace_n<'a>(source: &'a str, from: &'a str, to: &'a str, n: usize) -> ReplaceN<'a> {
+	impl core::fmt::Display for ReplaceN<'_> {
 		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
 			let mut last_end = 0;
 			for (start, part) in self.source.match_indices(self.from).take(self.n) {
@@ -482,6 +513,14 @@ pub fn replace_n<'a>(
 	}
 }
 
+/// See [`replace_n()`].
+pub struct ReplaceN<'a> {
+	source: &'a str,
+	from: &'a str,
+	to: &'a str,
+	n: usize,
+}
+
 /// Concatenate the contents of an iterator.
 ///
 /// If you want to insert a separator inbetween elements, use [`join`] or [`join_format`].
@@ -497,16 +536,12 @@ pub fn replace_n<'a>(
 /// # assert_eq!(concat(&[1, 2, 3]).to_string(), "123");
 /// # assert_eq!(concat(None::<u8>).to_string(), "");
 /// ```
-pub fn concat<I>(iterator: I) -> impl core::fmt::Display
+pub fn concat<I>(iterator: I) -> Concat<I::IntoIter>
 where
 	I: IntoIterator,
 	I::Item: core::fmt::Display,
 	I::IntoIter: Clone,
 {
-	struct Concat<I> {
-		iterator: I,
-	}
-
 	impl<I> core::fmt::Display for Concat<I>
 	where
 		I: Iterator + Clone,
@@ -525,7 +560,14 @@ where
 	}
 }
 
+/// See [`concat()`].
+pub struct Concat<I> {
+	iterator: I,
+}
+
 /// Write a Display object into a fixed-size buffer and returns the resulting &mut str.
+///
+/// Can be used in combination with all of the functions in this crate that returns Display.
 ///
 /// Returns Ok if the object fully fits into the given buffer, and Err with the
 /// truncated string otherwise.
@@ -619,6 +661,8 @@ pub fn collect_str_mut(
 }
 
 /// Write a Display object into a fixed-size buffer and returns the resulting &str.
+///
+/// Can be used in combination with all of the functions in this crate that returns Display.
 ///
 /// Returns Ok if the object fully fits into the given buffer, and Err with the
 /// truncated string otherwise.
