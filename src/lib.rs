@@ -862,3 +862,41 @@ pub fn cmp<T: core::fmt::Display>(this: T, other: &str) -> core::cmp::Ordering {
 // In case future me forgot how to implement something that cursed: every time a sends a string
 // segment, request and loop through all of b's segments, comparing the appropriate segments
 // Could probably use the Index implementation there
+
+/// Create an ordinal from a number.
+///
+/// ```rust
+/// # use display_utils::*;
+/// assert_eq!(ordinal(-1).to_string(), "-1st");
+/// assert_eq!(ordinal(0).to_string(), "0th");
+/// assert_eq!(ordinal(1).to_string(), "1st");
+/// assert_eq!(ordinal(2).to_string(), "2nd");
+/// assert_eq!(ordinal(3).to_string(), "3rd");
+/// assert_eq!(ordinal(4).to_string(), "4th");
+/// # assert_eq!(ordinal(-2).to_string(), "-2nd");
+/// # assert_eq!(ordinal(11).to_string(), "11th");
+/// # assert_eq!(ordinal(102).to_string(), "102nd");
+/// # assert_eq!(ordinal(112).to_string(), "112th");
+/// # assert_eq!(ordinal(999).to_string(), "999th");
+/// ```
+pub fn ordinal(number: i32) -> Ordinal {
+	impl core::fmt::Display for Ordinal {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			let n = self.number.abs();
+			let suffix = match n % 10 {
+				1 if n % 100 != 11 => "st",
+				2 if n % 100 != 12 => "nd",
+				3 if n % 100 != 13 => "rd",
+				_ => "th",
+			};
+			write!(f, "{}{}", self.number, suffix)
+		}
+	}
+
+	Ordinal { number }
+}
+
+/// See [`ordinal()`].
+pub struct Ordinal {
+	number: i32,
+}
