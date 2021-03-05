@@ -3,7 +3,7 @@ pub trait IteratorExt: Iterator + Sized + Clone
 where
 	Self::Item: core::fmt::Display,
 {
-	/// Alias for [`crate::concat`]
+	/// Alias for [`crate::concat()`]
 	fn display_concat(self) -> crate::Concat<Self> {
 		crate::concat(self)
 	}

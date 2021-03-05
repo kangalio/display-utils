@@ -50,6 +50,41 @@ fn test_checked_split_at() {
 	assert_eq!(checked_split_at(b"Hello", 6), None);
 }
 
+#[doc(hidden)]
+pub struct Concat2<A, B>(pub A, pub B);
+impl<A: core::fmt::Display, B: core::fmt::Display> core::fmt::Display for Concat2<A, B> {
+	fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+		self.0.fmt(f)?;
+		self.1.fmt(f)?;
+		Ok(())
+	}
+}
+
+/// Concatenate arbitrarily many instances of different types.
+///
+/// Note: there is also the `concat()` function, which works with iterators of same-type objects.
+///
+/// ```rust
+/// # use display_utils::concat;
+/// assert_eq!(concat!().to_string(), "");
+/// assert_eq!(concat!("0").to_string(), "0");
+/// assert_eq!(concat!("0", 1).to_string(), "01");
+/// assert_eq!(concat!("0", 1, '2').to_string(), "012");
+/// assert_eq!(concat!("0", 1, '2', String::from("3")).to_string(), "0123");
+/// ```
+#[macro_export]
+macro_rules! concat {
+	() => {
+		""
+	};
+	($e:expr $(,)?) => {
+		$e
+	};
+	($e:expr $(,$rest:expr)+ $(,)?) => {
+		$crate::Concat2($e, $crate::concat!($($rest),*))
+	};
+}
+
 /// Print a loading-style bar using Unicode block characters.
 ///
 /// The bar is very high-resolution: 8 states can be represented per character.
@@ -522,7 +557,8 @@ pub struct ReplaceN<'a, T> {
 
 /// Concatenate the contents of an iterator.
 ///
-/// If you want to insert a separator inbetween elements, use [`join`] or [`join_format`].
+/// If you want to insert a separator inbetween elements, use [`join`] or [`join_format`]. If you
+/// want to concatenate different types, use `concat!`.
 ///
 /// ```rust
 /// # use display_utils::*;
