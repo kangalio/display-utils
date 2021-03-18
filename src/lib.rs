@@ -31,8 +31,6 @@
 
 mod extension_traits;
 pub use extension_traits::{DisplayExt, IteratorExt};
-// mod wrapper;
-// pub use wrapper::Wrapper;
 
 // Sigh, how I wish std exposed non-panicking functions by default
 fn checked_split_at(s: &[u8], index: usize) -> Option<(&[u8], &[u8])> {
