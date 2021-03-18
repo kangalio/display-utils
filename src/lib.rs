@@ -934,3 +934,62 @@ pub fn ordinal(number: i32) -> Ordinal {
 pub struct Ordinal {
 	number: i32,
 }
+
+/// Truncate a string to not go beyond a certain length, adding a custom ellipsis when appropriate.
+///
+/// String lengths are measured in Unicode code points.
+///
+/// ```rust
+/// # use display_utils::*;
+/// assert_eq!(
+///     truncate_with("abcdefgh", 7, "...").to_string(),
+///     "abcd...",
+/// );
+/// assert_eq!(
+///     truncate_with("abcdefgh", 8, "...").to_string(),
+///     "abcdefgh",
+/// );
+/// # assert_eq!(truncate_with("hallo", 2, "ä").to_string(), "hä");
+/// # assert_eq!(truncate_with("hallö", 4, "o").to_string(), "halo");
+/// ```
+pub fn truncate_with<'a>(
+	string: &'a str,
+	max_length: usize,
+	ellipsis: &'a str,
+) -> TruncateWith<'a> {
+	impl core::fmt::Display for TruncateWith<'_> {
+		fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+			let mut chars = self.string.chars();
+
+			// Print the chars that definitely fit
+			let guaranteed_length = self.max_length - self.ellipsis.chars().count();
+			for c in chars.by_ref().take(guaranteed_length) {
+				c.fmt(f)?;
+			}
+
+			// If the remaining chars fit into limit, print those chars, else print the ellipsis
+			if chars.clone().count() <= self.ellipsis.chars().count() {
+				for c in chars {
+					c.fmt(f)?;
+				}
+			} else {
+				self.ellipsis.fmt(f)?;
+			}
+
+			Ok(())
+		}
+	}
+
+	TruncateWith {
+		string,
+		max_length,
+		ellipsis,
+	}
+}
+
+/// See [`truncate_with()`].
+pub struct TruncateWith<'a> {
+	string: &'a str,
+	max_length: usize,
+	ellipsis: &'a str,
+}
