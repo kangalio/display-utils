@@ -829,6 +829,8 @@ pub struct DisplaySlice<T> {
 /// assert_eq!(cmp(true, "trud"), Ordering::Greater);
 /// assert_eq!(cmp(true, "true"), Ordering::Equal);
 /// assert_eq!(cmp(true, "truf"), Ordering::Less);
+/// assert_eq!(cmp(true, "tru"),  Ordering::Greater);
+/// assert_eq!(cmp(true, "truer"), Ordering::Less);
 ///
 /// # let test = |segments: &[&'static str], reference| assert_eq!(
 /// #     cmp(display_utils::concat(segments), reference),
@@ -882,7 +884,7 @@ pub fn cmp<T: core::fmt::Display>(this: T, other: &str) -> core::cmp::Ordering {
 	// we ignore errors because our Write impl doesn't yield errors in any case anyways
 	let _ = write!(compare_writer, "{}", this);
 
-	if compare_writer.state == core::cmp::Ordering::Less && !compare_writer.reference.is_empty() {
+	if compare_writer.state == core::cmp::Ordering::Equal && !compare_writer.reference.is_empty() {
 		// The two strings were the same so far, but the reference string is not yet exhausted
 		// so the reference string is greater
 		core::cmp::Ordering::Less
